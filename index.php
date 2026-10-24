@@ -31,8 +31,10 @@
 		$file_handle = fopen($file, 'r');
 		$set=0;
 		$i=0;
-		while (1) {
-			$line = fgets($file_handle);
+		// Stop at end of file as well: if babeld does not answer, the dump has
+		// fewer than two "ok" lines and the loop would never end (page hangs
+		// until the PHP time limit).
+		while ($file_handle && ($line = fgets($file_handle)) !== false) {
 			if ($i <= 5) { 
 				$data[] = $line; 
 				$i++;
@@ -45,7 +47,7 @@
 			if (preg_match("/ok/", $line)){ $set++; }
 			if ($set == 2) { break; }
 		}
-		fclose($file_handle);
+		if ($file_handle) { fclose($file_handle); }
 
 		$output['data'] = array(
 			'name' => $data[0],
@@ -64,23 +66,20 @@
 			);
 		}
 		foreach ($neighbour as $temp) {
-			$address=explode(" ",strstr($temp,"address"));
-			$interface=explode(" ",strstr($temp,"if"));
-			$reach=explode(" ",strstr($temp,"reach"));
-			$rxcost=explode(" ",strstr($temp,"rxcost"));
-			$txcost=explode(" ",strstr($temp,"txcost"));
-			$rtt=explode(" ",strstr($temp,"rtt"));
-			$rttcost=explode(" ",strstr($temp,"rttcost"));
-			$cost=explode(" ",strstr($temp,"cost"));
+			// Read "key value" pairs by whole word: strstr($temp, "cost") found
+			// the "cost" inside "rxcost", so the cost column showed rxcost.
+			$field = function ($key) use ($temp) {
+				return preg_match('/(?<![\w-])' . $key . ' (\S+)/', $temp, $m) ? $m[1] : '';
+			};
 			$output['neighbours'][] = array(
-				'address' => $address[1],
-				'interface' => $interface[1],
-				'reach' => $reach[1],
-				'rxcost' => $rxcost[1],
-				'txcost' => $txcost[1],
-				'rtt' => $rtt[1],
-				'rttcost' => $rttcost[1],
-				'cost' => $cost[1],
+				'address' => $field('address'),
+				'interface' => $field('if'),
+				'reach' => $field('reach'),
+				'rxcost' => $field('rxcost'),
+				'txcost' => $field('txcost'),
+				'rtt' => $field('rtt'),
+				'rttcost' => $field('rttcost'),
+				'cost' => $field('cost'),
 			);
 		}
 
